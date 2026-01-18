@@ -1,0 +1,17 @@
+:root {
+    --max-width: 1200px;
+    --bg: #0f1115;
+    --panel: rgba(20, 25, 34, 0.5);
+    --panel-border: rgb(28, 35, 48);
+    --panel-accent: #b82a20;
+    --text: #e8eaf0;
+    --muted: #9aa3b2;
+    --ok: #49e150;
+    --err: #c62828;
+    --accent: #ec483b;
+    --accent-light: #f9746a;
+    --accent-dark: #b82a20;
+    --accent-shadow: rgba(110, 16, 9, 0.3);
+    --accent-shadow2: rgba(110, 16, 9, 0.8);
+    --shadow: 0 12px 30px rgba(0, 0, 0, .35), 0 2px 8px rgba(0, 0, 0, .35);
+}

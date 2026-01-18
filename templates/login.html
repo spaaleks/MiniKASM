@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Login · Mini KASM{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+  <div class="auth-card form-card">
+    <h3>Login</h3>
+    {% if error %}
+    <div class="alert alert-error">
+      {{ error }}
+    </div>
+    {% endif %}
+    <form method="post" action="{{ url_for('login_post') }}">
+      <label>Username</label>
+      <input type="text" name="username" placeholder="username" required autocomplete="username" autofocus>
+      <label>Password</label>
+      <input type="password" name="password" placeholder="password" required autocomplete="current-password">
+      <button type="submit">Login</button>
+    </form>
+  </div>
+</div>
+<div class="footer">
+  by Spal<span class="dot">.</span>
+</div>
+{% endblock %}

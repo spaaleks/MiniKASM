@@ -1,0 +1,65 @@
+{
+  "admin": {
+    "listen": "localhost:2019"
+  },
+  "apps": {
+    "http": {
+      "servers": {
+        "srv0": {
+          "listen": [":32090"],
+          "routes": [
+            {
+              "@id": "flask-login",
+              "match": [{"path": ["/login", "/login/*"]}],
+              "handle": [{
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": "localhost:8080"}]
+              }]
+            },
+            {
+              "@id": "flask-logout",
+              "match": [{"path": ["/logout", "/logout/*"]}],
+              "handle": [{
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": "localhost:8080"}]
+              }]
+            },
+            {
+              "@id": "flask-api",
+              "match": [{"path": ["/api/*"]}],
+              "handle": [{
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": "localhost:8080"}]
+              }]
+            },
+            {
+              "@id": "flask-healthz",
+              "match": [{"path": ["/healthz"]}],
+              "handle": [{
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": "localhost:8080"}]
+              }]
+            },
+            {
+              "@id": "flask-static",
+              "match": [{"path": ["/static/*"]}],
+              "handle": [{
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": "localhost:8080"}]
+              }]
+            },
+            {
+              "@id": "flask-root",
+              "match": [{"path": ["/"]}],
+              "handle": [{
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": "localhost:8080"}]
+              }]
+            }
+          ],
+          "logs": {}
+        }
+      }
+    }
+  }
+}

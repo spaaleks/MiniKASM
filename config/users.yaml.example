@@ -1,0 +1,65 @@
+server:
+  secret_key: "change-me-to-a-secure-random-string"
+  session_path_prefix: "/u"
+  idle_timeout_seconds: 600
+  max_sessions_total: 50
+
+docker:
+  network: "kasm_net"
+  container_port: 6901
+  shm_size: "512m"
+  user_volume_path: "/home/kasm-user/data"
+  resolution: "1920x1080"
+  env: {}
+
+  allowed_images:
+    chromium:
+      name: "Chromium Browser"
+      image: "kasmweb/chromium:1.16.1"
+      description: "Lightweight browser"
+      default: true
+      volumes:
+        - path: "/home/kasm-user/.config/chromium"
+          suffix: "chromium-profile"
+
+    firefox:
+      name: "Firefox Browser"
+      image: "kasmweb/firefox:1.16.1"
+      description: "Full-featured browser"
+
+    desktop:
+      name: "Ubuntu Desktop"
+      image: "kasmweb/ubuntu-jammy-desktop:1.16.1"
+      description: "Full desktop environment"
+      resolution: "2560x1440"
+
+    local-dev:
+      name: "Local Dev Image"
+      image: "my-app:dev"
+      pull_on_restart: false
+
+users:
+  - username: "alice"
+    password_hash_bcrypt: "$2b$12$..."
+    protection_password: "secret123"
+    max_sessions: 3
+    cpu_limit: 2.0
+    mem_limit: "2048m"
+    shm_size: "1g"
+    persistent_volume: true
+    allowed_images:
+      - chromium
+      - firefox
+      - desktop
+    default_image: "desktop"
+
+  - username: "bob"
+    password_hash_bcrypt: "$2b$12$..."
+    protection_password: "bobpass"
+    max_sessions: 1
+    cpu_limit: 1.0
+    mem_limit: "1024m"
+    shm_size: "512m"
+    persistent_volume: false
+    allowed_images:
+      - chromium

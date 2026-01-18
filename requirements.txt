@@ -1,0 +1,8 @@
+flask
+pyyaml
+bcrypt
+docker
+requests
+gevent
+gevent-websocket
+websocket-client

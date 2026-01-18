@@ -1,0 +1,21 @@
+services:
+  mini-kasm:
+    build:
+      context: .
+      dockerfile: .build/Dockerfile
+    environment:
+      - CONFIG_PATH=/config/users.yaml
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - PORT=32090
+    volumes:
+      - ./config:/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - spal_kasm_net
+    ports:
+      - "32090:32090"
+
+networks:
+  spal_kasm_net:
+    name: spal_kasm_net
+    external: true

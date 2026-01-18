@@ -1,0 +1,23 @@
+services:
+  mini-kasm:
+    image: spaleks/mini-kasm:latest
+    container_name: mini-kasm
+    environment:
+      - CONFIG_PATH=/config/users.yaml
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - PORT=32090
+      - DB_PATH=/data/minikasm.db
+    volumes:
+      - ./config:/config:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+    networks:
+      - spal_kasm_net
+    ports:
+      - "32090:32090"
+    restart: unless-stopped
+
+networks:
+  spal_kasm_net:
+    name: spal_kasm_net
+    external: true

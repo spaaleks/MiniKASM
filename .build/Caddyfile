@@ -1,0 +1,48 @@
+{
+	# Enable admin API on localhost
+	admin localhost:2019
+
+	# Disable automatic HTTPS since we're behind a reverse proxy
+	auto_https off
+}
+
+:32090 {
+	# Flask app handles auth, home, API
+	handle /login* {
+		reverse_proxy localhost:8080
+	}
+
+	handle /logout* {
+		reverse_proxy localhost:8080
+	}
+
+	handle /api/* {
+		reverse_proxy localhost:8080
+	}
+
+	handle /healthz {
+		reverse_proxy localhost:8080
+	}
+
+	handle /static/* {
+		reverse_proxy localhost:8080
+	}
+
+	# Root and home page
+	handle / {
+		reverse_proxy localhost:8080
+	}
+
+	# Session routes /u/<session_id>/* are added dynamically via admin API
+	# They will be added as handle_path blocks that proxy to KASM containers
+
+	# Catch-all for undefined routes
+	handle {
+		respond "Not Found" 404
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

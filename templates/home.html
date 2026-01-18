@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% block title %}Home · Mini KASM{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+  <h3>Your Sessions</h3>
+  <div class="create-session-form">
+    {% if allowed_images|length > 1 %}
+    <select id="imageSelect" class="image-select">
+      {% for key, img in allowed_images.items()|sort(attribute='1.name') %}
+      <option value="{{ key }}" {% if img.default %}selected{% endif %}>
+        {{ img.name }}{% if img.description %} - {{ img.description }}{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <button id="createSessionBtn">New Session</button>
+  </div>
+</div>
+
+<div id="sessionsContainer" class="sessions-grid">
+  {% if sessions %}
+    {% for s in sessions %}
+    <div class="session-card{% if s.state == 'paused' %} paused{% endif %}{% if s.delete_protected %} protected{% endif %}" data-session-id="{{ s.session_id }}" data-state="{{ s.state }}" data-protected="{{ s.delete_protected|lower }}">
+      <div class="session-header">
+        <div class="session-title">
+          <span class="session-alias" data-session-id="{{ s.session_id }}" title="Click to edit">{{ s.alias or s.session_id[:8] }}</span>
+          <span class="session-id-small">{{ s.session_id }}</span>
+        </div>
+        <div class="session-badges">
+          {% if s.delete_protected %}
+          <span class="badge protected" title="Protected from deletion">
+            <svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+          </span>
+          {% endif %}
+          <span class="session-status {{ s.state }}">{{ s.state|capitalize }}</span>
+        </div>
+      </div>
+      {% if s.image_key %}
+      <div class="session-image-tag">{{ allowed_images[s.image_key].name if s.image_key in allowed_images else s.image_key }}</div>
+      {% endif %}
+      <div class="session-metrics">
+        <div class="metric">
+          <div class="metric-label"><small>CPU</small><small class="metric-value cpu-value">--%</small></div>
+          <div class="progress"><div class="progbar cpu-bar"></div></div>
+        </div>
+        <div class="metric">
+          <div class="metric-label"><small>RAM</small><small class="metric-value mem-value">-- / -- MB</small></div>
+          <div class="progress"><div class="progbar mem-bar"></div></div>
+        </div>
+      </div>
+      <div class="session-actions">
+        <a href="{{ prefix }}/{{ s.session_id }}/" target="_blank" class="open-link{% if s.state == 'paused' %} disabled{% endif %}">
+          <button class="btn-sm open-btn" {% if s.state == 'paused' %}disabled{% endif %}>Open</button>
+        </a>
+        <div class="action-btns">
+          {% if s.state == 'running' %}
+          <button class="icon-btn pause-btn" data-session-id="{{ s.session_id }}" title="Pause session">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+          {% else %}
+          <button class="icon-btn resume-btn" data-session-id="{{ s.session_id }}" title="Resume session">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+          </button>
+          {% endif %}
+          <button class="icon-btn restart-btn" data-session-id="{{ s.session_id }}" title="Restart with latest image">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+          </button>
+          <button class="icon-btn protect-btn{% if s.delete_protected %} active{% endif %}" data-session-id="{{ s.session_id }}" data-protected="{{ s.delete_protected|lower }}" title="Toggle delete protection">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+          </button>
+          <button class="icon-btn danger delete-session-btn" data-session-id="{{ s.session_id }}" title="Delete session">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7H4a1 1 0 1 1 0-2h4V4a1 1 0 0 1 1-1zm-2 4v12h10V7H7zm2 2h2v8H9V9zm4 0h2v8h-2V9z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      <p>No active sessions. Click "New Session" to create one.</p>
+    </div>
+  {% endif %}
+</div>
+<div class="footer">
+  by Spal<span class="dot">.</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var createBtn = document.getElementById('createSessionBtn');
+  var imageSelect = document.getElementById('imageSelect');
+  var container = document.getElementById('sessionsContainer');
+  var prefix = '{{ prefix }}';
+  var allowedImages = {{ allowed_images|tojson|safe }};
+
+  function getImageName(key) {
+    if (allowedImages[key]) return allowedImages[key].name;
+    return key;
+  }
+
+  function addSessionCard(sessionId, imageKey, alias, state, deleteProtected) {
+    var empty = container.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    var imageName = getImageName(imageKey);
+    var displayName = alias || sessionId.substring(0, 8);
+    var isPaused = state === 'paused';
+    var isProtected = deleteProtected;
+
+    var card = document.createElement('div');
+    card.className = 'session-card' + (isPaused ? ' paused' : '') + (isProtected ? ' protected' : '');
+    card.dataset.sessionId = sessionId;
+    card.dataset.state = state;
+    card.dataset.protected = String(isProtected);
+
+    card.innerHTML =
+      '<div class="session-header">' +
+        '<div class="session-title">' +
+          '<span class="session-alias" data-session-id="' + sessionId + '" title="Click to edit">' + displayName + '</span>' +
+          '<span class="session-id-small">' + sessionId + '</span>' +
+        '</div>' +
+        '<div class="session-badges">' +
+          (isProtected ? '<span class="badge protected" title="Protected from deletion"><svg viewBox="0 0 24 24" width="12" height="12"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></span>' : '') +
+          '<span class="session-status ' + state + '">' + state.charAt(0).toUpperCase() + state.slice(1) + '</span>' +
+        '</div>' +
+      '</div>' +
+      (imageKey ? '<div class="session-image-tag">' + imageName + '</div>' : '') +
+      '<div class="session-metrics">' +
+        '<div class="metric">' +
+          '<div class="metric-label"><small>CPU</small><small class="metric-value cpu-value">--%</small></div>' +
+          '<div class="progress"><div class="progbar cpu-bar"></div></div>' +
+        '</div>' +
+        '<div class="metric">' +
+          '<div class="metric-label"><small>RAM</small><small class="metric-value mem-value">-- / -- MB</small></div>' +
+          '<div class="progress"><div class="progbar mem-bar"></div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="session-actions">' +
+        '<a href="' + prefix + '/' + sessionId + '/" target="_blank" class="open-link' + (isPaused ? ' disabled' : '') + '">' +
+          '<button class="btn-sm open-btn"' + (isPaused ? ' disabled' : '') + '>Open</button>' +
+        '</a>' +
+        '<div class="action-btns">' +
+          (isPaused ?
+            '<button class="icon-btn resume-btn" data-session-id="' + sessionId + '" title="Resume session"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></button>' :
+            '<button class="icon-btn pause-btn" data-session-id="' + sessionId + '" title="Pause session"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg></button>'
+          ) +
+          '<button class="icon-btn restart-btn" data-session-id="' + sessionId + '" title="Restart with latest image"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>' +
+          '<button class="icon-btn protect-btn' + (isProtected ? ' active' : '') + '" data-session-id="' + sessionId + '" data-protected="' + isProtected + '" title="Toggle delete protection"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></button>' +
+          '<button class="icon-btn danger delete-session-btn" data-session-id="' + sessionId + '" title="Delete session"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M9 3h6a1 1 0 0 1 1 1v1h4a1 1 0 1 1 0 2h-1v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7H4a1 1 0 1 1 0-2h4V4a1 1 0 0 1 1-1zm-2 4v12h10V7H7zm2 2h2v8H9V9zm4 0h2v8h-2V9z"/></svg></button>' +
+        '</div>' +
+      '</div>';
+
+    container.appendChild(card);
+    if (!isPaused) fetchStats(sessionId);
+  }
+
+  async function fetchStats(sessionId) {
+    try {
+      var resp = await fetch('/api/sessions/' + sessionId + '/stats');
+      if (resp.ok) {
+        var stats = await resp.json();
+        updateStats(sessionId, stats);
+      }
+    } catch (e) {}
+  }
+
+  function formatMem(mb) {
+    if (mb >= 1000) {
+      return (mb / 1024).toFixed(1) + ' GB';
+    }
+    return Math.round(mb) + ' MB';
+  }
+
+  function updateStats(sessionId, stats) {
+    var card = container.querySelector('.session-card[data-session-id="' + sessionId + '"]');
+    if (!card) return;
+
+    var cpuBar = card.querySelector('.cpu-bar');
+    var cpuVal = card.querySelector('.cpu-value');
+    var memBar = card.querySelector('.mem-bar');
+    var memVal = card.querySelector('.mem-value');
+
+    if (cpuBar) cpuBar.style.width = Math.min(stats.cpu_percent, 100) + '%';
+    if (cpuVal) cpuVal.textContent = stats.cpu_percent + '%';
+    if (memBar) memBar.style.width = Math.min(stats.mem_percent, 100) + '%';
+    if (memVal) memVal.textContent = formatMem(stats.mem_usage_mb) + ' / ' + formatMem(stats.mem_limit_mb) + ' / ' + stats.mem_percent + '%';
+  }
+
+  function refreshAllStats() {
+    var cards = container.querySelectorAll('.session-card:not(.paused)');
+    cards.forEach(function(card) {
+      fetchStats(card.dataset.sessionId);
+    });
+  }
+
+  setInterval(refreshAllStats, 5000);
+  refreshAllStats();
+
+  function removeSessionCard(sessionId) {
+    var card = container.querySelector('.session-card[data-session-id="' + sessionId + '"]');
+    if (card) card.remove();
+    if (container.querySelectorAll('.session-card').length === 0) {
+      container.innerHTML = '<div class="empty-state"><p>No active sessions. Click "New Session" to create one.</p></div>';
+    }
+  }
+
+  async function ensureImage(imageKey) {
+    var url = '/api/image/status' + (imageKey ? '?image_key=' + imageKey : '');
+    var statusResp = await fetch(url);
+    var status = await statusResp.json();
+    if (status.available) return true;
+
+    createBtn.textContent = 'Pulling image...';
+    var pullResp = await fetch('/api/image/pull', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_key: imageKey })
+    });
+    var reader = pullResp.body.getReader();
+    var decoder = new TextDecoder();
+
+    while (true) {
+      var { done, value } = await reader.read();
+      if (done) break;
+      var text = decoder.decode(value);
+      var lines = text.split('\n').filter(function(l) { return l.startsWith('data:'); });
+      for (var i = 0; i < lines.length; i++) {
+        var msg = JSON.parse(lines[i].slice(5));
+        if (msg.status === 'complete') return true;
+        if (msg.status === 'error') return false;
+      }
+    }
+    return false;
+  }
+
+  createBtn.addEventListener('click', async function() {
+    createBtn.disabled = true;
+    createBtn.textContent = 'Checking image...';
+    var imageKey = imageSelect ? imageSelect.value : null;
+
+    try {
+      var imageReady = await ensureImage(imageKey);
+      if (!imageReady) {
+        alert('Failed to pull container image');
+        return;
+      }
+      createBtn.textContent = 'Creating...';
+      var body = {};
+      if (imageKey) body.image_key = imageKey;
+
+      var resp = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      var data = await resp.json();
+      if (resp.ok) {
+        addSessionCard(data.sessionId, data.imageKey, data.alias, 'running', false);
+      } else {
+        alert(data.error || 'Failed to create session');
+      }
+    } catch (e) {
+      alert('Error creating session: ' + e.message);
+    } finally {
+      createBtn.disabled = false;
+      createBtn.textContent = 'New Session';
+    }
+  });
+
+  container.addEventListener('click', async function(e) {
+    var deleteBtn = e.target.closest('.delete-session-btn');
+    if (deleteBtn) {
+      var sessionId = deleteBtn.dataset.sessionId;
+      var card = deleteBtn.closest('.session-card');
+      var isProtected = card && card.dataset.protected === 'true';
+
+      if (!confirm('Delete this session?')) return;
+
+      var password = null;
+      if (isProtected) {
+        password = prompt('This session is protected. Enter protection password:');
+        if (password === null) return;
+      }
+
+      deleteBtn.disabled = true;
+      deleteBtn.style.opacity = '0.5';
+      try {
+        var opts = { method: 'DELETE' };
+        if (password !== null) {
+          opts.headers = { 'Content-Type': 'application/json' };
+          opts.body = JSON.stringify({ password: password });
+        }
+        var resp = await fetch('/api/sessions/' + sessionId, opts);
+        if (resp.ok) {
+          removeSessionCard(sessionId);
+        } else {
+          var data = await resp.json();
+          alert(data.error || 'Failed to delete session');
+          deleteBtn.disabled = false;
+          deleteBtn.style.opacity = '1';
+        }
+      } catch (err) {
+        alert('Error deleting session: ' + err.message);
+        deleteBtn.disabled = false;
+        deleteBtn.style.opacity = '1';
+      }
+      return;
+    }
+
+    var pauseBtn = e.target.closest('.pause-btn');
+    if (pauseBtn) {
+      var sessionId = pauseBtn.dataset.sessionId;
+      var card = pauseBtn.closest('.session-card');
+      var isProtected = card && card.dataset.protected === 'true';
+
+      var password = null;
+      if (isProtected) {
+        password = prompt('This session is protected. Enter protection password:');
+        if (password === null) return;
+      }
+
+      pauseBtn.disabled = true;
+      try {
+        var opts = { method: 'POST' };
+        if (password !== null) {
+          opts.headers = { 'Content-Type': 'application/json' };
+          opts.body = JSON.stringify({ password: password });
+        }
+        var resp = await fetch('/api/sessions/' + sessionId + '/pause', opts);
+        if (resp.ok) {
+          location.reload();
+        } else {
+          var data = await resp.json();
+          alert(data.error || 'Failed to pause session');
+          pauseBtn.disabled = false;
+        }
+      } catch (err) {
+        alert('Error pausing session: ' + err.message);
+        pauseBtn.disabled = false;
+      }
+      return;
+    }
+
+    var resumeBtn = e.target.closest('.resume-btn');
+    if (resumeBtn) {
+      var sessionId = resumeBtn.dataset.sessionId;
+      resumeBtn.disabled = true;
+      try {
+        var resp = await fetch('/api/sessions/' + sessionId + '/resume', { method: 'POST' });
+        if (resp.ok) {
+          location.reload();
+        } else {
+          var data = await resp.json();
+          alert(data.error || 'Failed to resume session');
+          resumeBtn.disabled = false;
+        }
+      } catch (err) {
+        alert('Error resuming session: ' + err.message);
+        resumeBtn.disabled = false;
+      }
+      return;
+    }
+
+    var restartBtn = e.target.closest('.restart-btn');
+    if (restartBtn) {
+      var sessionId = restartBtn.dataset.sessionId;
+      var card = restartBtn.closest('.session-card');
+      var isProtected = card && card.dataset.protected === 'true';
+
+      if (!confirm('Restart this session with the latest image? This will create a new session ID.')) return;
+
+      var password = null;
+      if (isProtected) {
+        password = prompt('This session is protected. Enter protection password:');
+        if (password === null) return;
+      }
+
+      restartBtn.disabled = true;
+      try {
+        var opts = { method: 'POST' };
+        if (password !== null) {
+          opts.headers = { 'Content-Type': 'application/json' };
+          opts.body = JSON.stringify({ password: password });
+        }
+        var resp = await fetch('/api/sessions/' + sessionId + '/restart', opts);
+        if (resp.ok) {
+          location.reload();
+        } else {
+          var data = await resp.json();
+          alert(data.error || 'Failed to restart session');
+          restartBtn.disabled = false;
+        }
+      } catch (err) {
+        alert('Error restarting session: ' + err.message);
+        restartBtn.disabled = false;
+      }
+      return;
+    }
+
+    var protectBtn = e.target.closest('.protect-btn');
+    if (protectBtn) {
+      var sessionId = protectBtn.dataset.sessionId;
+      var currentlyProtected = protectBtn.dataset.protected === 'true';
+      var newProtected = !currentlyProtected;
+
+      var password = null;
+      if (currentlyProtected && !newProtected) {
+        password = prompt('Enter protection password to unprotect:');
+        if (password === null) return;
+      }
+
+      protectBtn.disabled = true;
+      try {
+        var body = { protected: newProtected };
+        if (password !== null) body.password = password;
+        var resp = await fetch('/api/sessions/' + sessionId + '/protect', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (resp.ok) {
+          location.reload();
+        } else {
+          var data = await resp.json();
+          alert(data.error || 'Failed to update protection');
+          protectBtn.disabled = false;
+        }
+      } catch (err) {
+        alert('Error updating protection: ' + err.message);
+        protectBtn.disabled = false;
+      }
+      return;
+    }
+
+    var aliasSpan = e.target.closest('.session-alias');
+    if (aliasSpan) {
+      var sessionId = aliasSpan.dataset.sessionId;
+      var currentAlias = aliasSpan.textContent;
+      var newAlias = prompt('Enter name for this session (leave empty to use session ID):', currentAlias);
+      if (newAlias === null) return;
+
+      try {
+        var resp = await fetch('/api/sessions/' + sessionId + '/alias', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ alias: newAlias })
+        });
+        if (resp.ok) {
+          aliasSpan.textContent = newAlias || sessionId.substring(0, 8);
+        } else {
+          var data = await resp.json();
+          alert(data.error || 'Failed to update alias');
+        }
+      } catch (err) {
+        alert('Error updating alias: ' + err.message);
+      }
+    }
+  });
+});
+</script>
+{% endblock %}
