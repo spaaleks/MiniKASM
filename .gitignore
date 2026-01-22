@@ -33,6 +33,8 @@ ENV/
 
 config/users.yaml
 
+data/
+
 *.log
 logs/
 

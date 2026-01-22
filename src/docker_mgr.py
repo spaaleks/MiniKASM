@@ -3,6 +3,7 @@ import secrets
 import socket
 import time
 import logging
+from datetime import datetime
 from docker.models.containers import Container
 from typing import Any
 
@@ -13,6 +14,19 @@ LABEL_PREFIX = "mini-kasm"
 
 def get_docker_client() -> docker.DockerClient:
     return docker.from_env()
+
+
+def parse_container_created(container: Container) -> float:
+    created = container.attrs.get("Created")
+    if not created:
+        return time.time()
+    if isinstance(created, (int, float)):
+        return float(created)
+    try:
+        dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        return dt.timestamp()
+    except (ValueError, AttributeError):
+        return time.time()
 
 
 def wait_for_ready(ip: str, port: int, timeout: int = 60) -> bool:
@@ -74,6 +88,12 @@ def create_session_container(
     image_key: str | None = None,
     image_config: dict[str, Any] | None = None,
     persistent_volume: bool = False,
+    is_fixed: bool = False,
+    is_shared: bool = False,
+    alias: str | None = None,
+    cpu_limit_override: float | None = None,
+    mem_limit_override: str | None = None,
+    shm_size_override: str | None = None,
 ) -> Container:
     client = get_docker_client()
     docker_cfg = cfg["docker"]
@@ -96,19 +116,27 @@ def create_session_container(
     if resolution:
         env["VNC_RESOLUTION"] = resolution
 
+    cpu_limit = cpu_limit_override if cpu_limit_override is not None else user_cfg.get("cpu_limit", 1.0)
+    mem_limit = mem_limit_override if mem_limit_override is not None else user_cfg.get("mem_limit", "512m")
+    shm_size = shm_size_override if shm_size_override is not None else user_cfg.get("shm_size", docker_cfg.get("shm_size", "512m"))
+
     labels = {
         f"{LABEL_PREFIX}.managed": "true",
         f"{LABEL_PREFIX}.username": username,
         f"{LABEL_PREFIX}.session_id": session_id,
         f"{LABEL_PREFIX}.vnc_pw": env["VNC_PW"],
+        f"{LABEL_PREFIX}.is_fixed": str(is_fixed).lower(),
+        f"{LABEL_PREFIX}.is_shared": str(is_shared).lower(),
+        f"{LABEL_PREFIX}.cpu_limit": str(cpu_limit),
+        f"{LABEL_PREFIX}.mem_limit": str(mem_limit),
+        f"{LABEL_PREFIX}.shm_size": str(shm_size),
     }
 
     if image_key:
         labels[f"{LABEL_PREFIX}.image_key"] = image_key
 
-    cpu_limit = user_cfg.get("cpu_limit", 1.0)
-    mem_limit = user_cfg.get("mem_limit", "512m")
-    shm_size = user_cfg.get("shm_size", docker_cfg.get("shm_size", "512m"))
+    if alias:
+        labels[f"{LABEL_PREFIX}.alias"] = alias
 
     container_name = f"kasm-session-{session_id}"
     container_port = docker_cfg.get("container_port", 6901)
@@ -157,6 +185,18 @@ def create_session_container(
 
     if volumes:
         run_kwargs["volumes"] = volumes
+
+    if image_config:
+        cap_drop = image_config.get("cap_drop", ["ALL"])
+        cap_add = image_config.get("cap_add", ["CHOWN", "SETUID", "SETGID", "NET_RAW"])
+    else:
+        cap_drop = ["ALL"]
+        cap_add = ["CHOWN", "SETUID", "SETGID", "NET_RAW"]
+
+    if cap_drop:
+        run_kwargs["cap_drop"] = cap_drop
+    if cap_add:
+        run_kwargs["cap_add"] = cap_add
 
     container = client.containers.run(**run_kwargs)
     logger.info(f"Created container {container_name} for user {username} with image {session_image}")
@@ -290,19 +330,24 @@ def get_container_stats(container: Container) -> dict[str, float]:
         if system_delta > 0 and cpu_delta > 0:
             cpu_percent = (cpu_delta / system_delta) * num_cpus * 100.0
 
+        cpu_quota = container.attrs["HostConfig"]["CpuQuota"]
+        cpu_period = container.attrs["HostConfig"]["CpuPeriod"]
+        cpu_cores = cpu_quota / cpu_period if cpu_period > 0 and cpu_quota > 0 else 0
+
         mem_usage = stats["memory_stats"].get("usage", 0)
         mem_limit = stats["memory_stats"].get("limit", 1)
         mem_percent = (mem_usage / mem_limit) * 100.0 if mem_limit > 0 else 0.0
 
         return {
             "cpu_percent": round(cpu_percent, 1),
+            "cpu_cores": cpu_cores,
             "mem_percent": round(mem_percent, 1),
             "mem_usage_mb": round(mem_usage / (1024 * 1024), 1),
             "mem_limit_mb": round(mem_limit / (1024 * 1024), 1),
         }
     except Exception as e:
         logger.error(f"Error getting container stats: {e}")
-        return {"cpu_percent": 0.0, "mem_percent": 0.0, "mem_usage_mb": 0.0, "mem_limit_mb": 0.0}
+        return {"cpu_percent": 0.0, "cpu_cores": 0, "mem_percent": 0.0, "mem_usage_mb": 0.0, "mem_limit_mb": 0.0}
 
 
 def _get_user_cfg(cfg: dict[str, Any], username: str) -> dict[str, Any]:

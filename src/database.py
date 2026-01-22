@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get("DB_PATH", "/data/minikasm.db")
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     alias TEXT,
     state TEXT DEFAULT 'running',
     delete_protected INTEGER DEFAULT 0,
+    is_fixed INTEGER DEFAULT 0,
+    is_shared INTEGER DEFAULT 0,
     created_at REAL NOT NULL,
     last_seen REAL NOT NULL,
     container_ip TEXT,
@@ -39,9 +41,21 @@ CREATE TABLE IF NOT EXISTS session_volumes (
     FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS login_sessions (
+    token TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    last_seen REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    user_agent TEXT,
+    ip_address TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_username ON sessions(username);
 CREATE INDEX IF NOT EXISTS idx_sessions_state ON sessions(state);
 CREATE INDEX IF NOT EXISTS idx_session_volumes_session ON session_volumes(session_id);
+CREATE INDEX IF NOT EXISTS idx_login_sessions_username ON login_sessions(username);
+CREATE INDEX IF NOT EXISTS idx_login_sessions_expires ON login_sessions(expires_at);
 """
 
 
@@ -54,10 +68,23 @@ class SessionRow:
     alias: str | None
     state: str
     delete_protected: bool
+    is_fixed: bool
+    is_shared: bool
     created_at: float
     last_seen: float
     container_ip: str | None
     vnc_password: str | None
+
+
+@dataclass
+class LoginSessionRow:
+    token: str
+    username: str
+    created_at: float
+    last_seen: float
+    expires_at: float
+    user_agent: str | None
+    ip_address: str | None
 
 
 def _ensure_db_dir():
@@ -102,6 +129,31 @@ def init_db():
 
 def _run_migrations(conn: sqlite3.Connection, from_version: int):
     logger.info(f"Migrating database from version {from_version} to {SCHEMA_VERSION}")
+
+    if from_version < 2:
+        conn.execute("ALTER TABLE sessions ADD COLUMN is_fixed INTEGER DEFAULT 0")
+        logger.info("Added is_fixed column to sessions table")
+
+    if from_version < 3:
+        conn.execute("ALTER TABLE sessions ADD COLUMN is_shared INTEGER DEFAULT 0")
+        logger.info("Added is_shared column to sessions table")
+
+    if from_version < 4:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS login_sessions (
+                token TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                last_seen REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                user_agent TEXT,
+                ip_address TEXT
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_login_sessions_username ON login_sessions(username)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_login_sessions_expires ON login_sessions(expires_at)")
+        logger.info("Added login_sessions table")
+
     conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
     logger.info(f"Database migrated to version {SCHEMA_VERSION}")
 
@@ -116,6 +168,8 @@ def create_session(
     image_key: str | None = None,
     alias: str | None = None,
     state: str = "running",
+    is_fixed: bool = False,
+    is_shared: bool = False,
 ) -> SessionRow:
     now = time.time()
     with get_connection() as conn:
@@ -123,11 +177,11 @@ def create_session(
             """
             INSERT INTO sessions
             (session_id, container_id, username, image_key, alias, state,
-             delete_protected, created_at, last_seen, container_ip, vnc_password)
-            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+             delete_protected, is_fixed, is_shared, created_at, last_seen, container_ip, vnc_password)
+            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
             """,
             (session_id, container_id, username, image_key, alias, state,
-             created_at, now, container_ip, vnc_password)
+             1 if is_fixed else 0, 1 if is_shared else 0, created_at, now, container_ip, vnc_password)
         )
     logger.debug(f"Created session record: {session_id}")
     return SessionRow(
@@ -138,6 +192,8 @@ def create_session(
         alias=alias,
         state=state,
         delete_protected=False,
+        is_fixed=is_fixed,
+        is_shared=is_shared,
         created_at=created_at,
         last_seen=now,
         container_ip=container_ip,
@@ -276,6 +332,8 @@ def _row_to_session(row: sqlite3.Row) -> SessionRow:
         alias=row["alias"],
         state=row["state"],
         delete_protected=bool(row["delete_protected"]),
+        is_fixed=bool(row["is_fixed"]) if "is_fixed" in row.keys() else False,
+        is_shared=bool(row["is_shared"]) if "is_shared" in row.keys() else False,
         created_at=row["created_at"],
         last_seen=row["last_seen"],
         container_ip=row["container_ip"],
@@ -291,6 +349,10 @@ def migrate_container_to_db(
     container_ip: str | None = None,
     vnc_password: str | None = None,
     state: str = "running",
+    image_key: str | None = None,
+    alias: str | None = None,
+    is_fixed: bool = False,
+    is_shared: bool = False,
 ) -> SessionRow | None:
     if session_exists(session_id):
         if container_ip:
@@ -305,4 +367,121 @@ def migrate_container_to_db(
         container_ip=container_ip,
         vnc_password=vnc_password,
         state=state,
+        image_key=image_key,
+        alias=alias,
+        is_fixed=is_fixed,
+        is_shared=is_shared,
+    )
+
+
+def create_login_session(
+    token: str,
+    username: str,
+    expires_at: float,
+    user_agent: str | None = None,
+    ip_address: str | None = None,
+) -> LoginSessionRow:
+    now = time.time()
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO login_sessions
+            (token, username, created_at, last_seen, expires_at, user_agent, ip_address)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (token, username, now, now, expires_at, user_agent, ip_address)
+        )
+    logger.debug(f"Created login session for user: {username}")
+    return LoginSessionRow(
+        token=token,
+        username=username,
+        created_at=now,
+        last_seen=now,
+        expires_at=expires_at,
+        user_agent=user_agent,
+        ip_address=ip_address,
+    )
+
+
+def get_login_session(token: str) -> LoginSessionRow | None:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "SELECT * FROM login_sessions WHERE token = ?", (token,)
+        )
+        row = cursor.fetchone()
+        if row:
+            return _row_to_login_session(row)
+    return None
+
+
+def get_valid_login_session(token: str) -> LoginSessionRow | None:
+    now = time.time()
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "SELECT * FROM login_sessions WHERE token = ? AND expires_at > ?",
+            (token, now)
+        )
+        row = cursor.fetchone()
+        if row:
+            return _row_to_login_session(row)
+    return None
+
+
+def get_login_sessions_for_user(username: str) -> list[LoginSessionRow]:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "SELECT * FROM login_sessions WHERE username = ? ORDER BY last_seen DESC",
+            (username,)
+        )
+        return [_row_to_login_session(row) for row in cursor.fetchall()]
+
+
+def update_login_session_activity(token: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "UPDATE login_sessions SET last_seen = ? WHERE token = ?",
+            (time.time(), token)
+        )
+        return cursor.rowcount > 0
+
+
+def delete_login_session(token: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM login_sessions WHERE token = ?", (token,)
+        )
+        deleted = cursor.rowcount > 0
+        if deleted:
+            logger.debug(f"Deleted login session: {token[:8]}...")
+        return deleted
+
+
+def delete_login_sessions_for_user(username: str) -> int:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM login_sessions WHERE username = ?", (username,)
+        )
+        return cursor.rowcount
+
+
+def delete_expired_login_sessions() -> int:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM login_sessions WHERE expires_at < ?", (time.time(),)
+        )
+        count = cursor.rowcount
+        if count > 0:
+            logger.debug(f"Deleted {count} expired login sessions")
+        return count
+
+
+def _row_to_login_session(row: sqlite3.Row) -> LoginSessionRow:
+    return LoginSessionRow(
+        token=row["token"],
+        username=row["username"],
+        created_at=row["created_at"],
+        last_seen=row["last_seen"],
+        expires_at=row["expires_at"],
+        user_agent=row["user_agent"],
+        ip_address=row["ip_address"],
     )

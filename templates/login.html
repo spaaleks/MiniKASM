@@ -3,7 +3,35 @@
 {% block title %}Login · Mini KASM{% endblock %}
 
 {% block content %}
-<div class="auth-container">
+<div class="auth-container two-col">
+  <div class="welcome-card">
+    <h3>Mini KASM</h3>
+    <p>
+      A lightweight, self-hosted desktop streaming platform.<br>
+      Create on-demand browser or desktop sessions with per-user resource limits.
+    </p>
+    <div class="feature-list">
+      <div class="feature">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span>Any KASM image: Chromium, Firefox, Chrome, Ubuntu Desktop</span>
+      </div>
+      <div class="feature">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Per-user limits: CPU, memory, max sessions</span>
+      </div>
+      <div class="feature">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Secure: bcrypt auth, session isolation, container capabilities</span>
+      </div>
+      <div class="feature">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Idle sessions auto-pause, resume on login</span>
+      </div>
+    </div>
+    <p class="muted">
+      Powered by <a href="https://hub.docker.com/u/kasmweb" target="_blank">KASM Workspaces</a> images.
+    </p>
+  </div>
   <div class="auth-card form-card">
     <h3>Login</h3>
     {% if error %}
@@ -13,9 +41,9 @@
     {% endif %}
     <form method="post" action="{{ url_for('login_post') }}">
       <label>Username</label>
-      <input type="text" name="username" placeholder="username" required autocomplete="username" autofocus>
+      <input type="text" name="username" placeholder="Username" required autocomplete="username" autofocus>
       <label>Password</label>
-      <input type="password" name="password" placeholder="password" required autocomplete="current-password">
+      <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
       <button type="submit">Login</button>
     </form>
   </div>

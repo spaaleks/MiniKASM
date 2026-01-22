@@ -49,6 +49,14 @@
               }]
             },
             {
+              "@id": "flask-ws",
+              "match": [{"path": ["/ws"]}],
+              "handle": [{
+                "handler": "reverse_proxy",
+                "upstreams": [{"dial": "localhost:8080"}]
+              }]
+            },
+            {
               "@id": "flask-root",
               "match": [{"path": ["/"]}],
               "handle": [{
