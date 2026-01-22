@@ -78,7 +78,7 @@ body::before {
 
 .navbar h2 {
     display: inline-block;
-    padding: 6px 10px;
+    padding: 6px 10px 4px;
     border-radius: 6px;
     border: 1px solid var(--accent);
     background: var(--accent-shadow);
@@ -350,6 +350,31 @@ p {
     border-color: #666;
 }
 
+.session-card.restarting {
+    opacity: 0.8;
+    border-color: var(--accent);
+    animation: pulse-border 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% { border-color: var(--accent); }
+    50% { border-color: #666; }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+.session-card.deleting {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .session-card.protected {
     border-color: var(--ok);
 }
@@ -372,13 +397,16 @@ p {
     font-weight: 600;
     font-size: 15px;
     color: var(--text);
-    cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.session-alias:hover {
+.session-alias[data-session-id] {
+    cursor: pointer;
+}
+
+.session-alias[data-session-id]:hover {
     color: var(--accent);
 }
 
@@ -409,6 +437,23 @@ p {
     color: var(--ok);
 }
 
+.badge.fixed {
+    background: rgba(255, 193, 7, 0.2);
+    color: #ffc107;
+}
+
+.badge.shared {
+    background: rgba(33, 150, 243, 0.2);
+    color: #2196f3;
+}
+
+.session-info-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .session-image-tag {
     display: inline-block;
     padding: 4px 8px;
@@ -419,6 +464,17 @@ p {
     border: 1px solid var(--panel-border);
     color: var(--muted);
     align-self: flex-start;
+}
+
+.uptime-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    color: var(--muted);
 }
 
 .session-metrics {
@@ -464,6 +520,10 @@ p {
     background: #666;
 }
 
+.session-card.restarting .progress .progbar {
+    background: #2196f3;
+}
+
 .session-id {
     font-family: 'SF Mono', Monaco, 'Courier New', monospace;
     font-size: 13px;
@@ -471,11 +531,12 @@ p {
 }
 
 .session-status {
-    padding: 4px 8px;
+    padding: 4px 8px 3px;
     border-radius: 4px;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+    margin-left: 4px;
 }
 
 .session-status.running {
@@ -488,6 +549,44 @@ p {
     background: rgba(255, 193, 7, 0.15);
     border: 1px solid #ffc107;
     color: #ffc107;
+}
+
+.session-status.restarting {
+    background: rgba(33, 150, 243, 0.15);
+    border: 1px solid #2196f3;
+    color: #2196f3;
+}
+
+
+.restart-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(90deg, #1976d2, #2196f3);
+    color: #fff;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    z-index: 1000;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.restart-banner button {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: #fff;
+    padding: 6px 14px;
+    margin: 0;
+    font-size: 13px;
+    box-shadow: none;
+}
+
+.restart-banner button:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 .session-actions {
@@ -602,7 +701,7 @@ p {
     border: 1px solid var(--accent);
     background: var(--panel);
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--accent);
     cursor: pointer;
     box-shadow: none;
@@ -627,11 +726,86 @@ p {
 .auth-container {
     display: flex;
     justify-content: center;
-    padding-top: 40px;
+}
+
+.auth-container.two-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+@media all and (min-width: 768px) {
+    .auth-container.two-col {
+        flex-direction: row;
+        align-items: stretch;
+    }
+
+    .auth-container.two-col > .welcome-card,
+    .auth-container.two-col > .auth-card {
+        width: auto;
+        height: auto;
+        align-self: stretch;
+    }
+}
+
+.welcome-card {
+    flex: 1.5;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.welcome-card h3 {
+    margin: 0 0 16px 0;
+    font-size: 20px;
+}
+
+.welcome-card p {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0 0 16px 0;
+}
+
+.welcome-card p.muted {
+    margin-top: 20px;
+    margin-bottom: 0;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text);
+}
+
+.feature svg {
+    flex-shrink: 0;
+    color: var(--accent);
+    margin-top: 1px;
+}
+
+.feature span {
+    line-height: 1.4;
 }
 
 .auth-card {
-    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .auth-card h3 {
@@ -648,4 +822,121 @@ p {
     width: 120px;
     margin-top: 20px;
     align-self: flex-end;
+}
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+}
+
+.modal-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal {
+    background: rgb(20, 25, 34);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 24px;
+    min-width: 320px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    transform: scale(0.95);
+    transition: transform 0.2s;
+}
+
+.modal-overlay.visible .modal {
+    transform: scale(1);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.modal-header h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.modal-close-x {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.15s;
+}
+
+.modal-close-x:hover {
+    color: var(--text);
+}
+
+.modal-progress {
+    margin: 20px 0;
+}
+
+.modal-progress .progress {
+    height: 12px;
+    border-radius: 6px;
+}
+
+.modal-progress .progbar {
+    transition: width 0.3s ease;
+}
+
+.modal-message {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.modal-percent {
+    text-align: right;
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    font-size: 13px;
+    color: var(--text);
+    margin-top: 8px;
+}
+
+.modal-details {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+.modal-actions button {
+    margin: 0;
+}
+
+.modal-error {
+    color: var(--err);
+    font-size: 14px;
+    padding: 12px;
+    background: rgba(198, 40, 40, 0.15);
+    border: 1px solid var(--err);
+    border-radius: 8px;
+    margin-top: 12px;
 }

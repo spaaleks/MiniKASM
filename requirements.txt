@@ -1,8 +1,8 @@
 flask
+flask-sock
+simple-websocket
 pyyaml
 bcrypt
 docker
 requests
 gevent
-gevent-websocket
-websocket-client

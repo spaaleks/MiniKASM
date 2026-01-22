@@ -18,39 +18,109 @@ docker:
       image: "kasmweb/chromium:1.16.1"
       description: "Lightweight browser"
       default: true
-      volumes:
-        - path: "/home/kasm-user/.config/chromium"
-          suffix: "chromium-profile"
+      cap_add:
+        - SETUID
+        - SETGID
 
     firefox:
       name: "Firefox Browser"
       image: "kasmweb/firefox:1.16.1"
       description: "Full-featured browser"
 
+    obsidian:
+      name: "Obsidian"
+      image: "kasmweb/obsidian:1.18.0"
+      description: "Note-taking app"
+      volumes:
+        - path: "/home/kasm-user/obsidian"
+          suffix: "obsidian-vaults"
+
     desktop:
       name: "Ubuntu Desktop"
       image: "kasmweb/ubuntu-jammy-desktop:1.16.1"
       description: "Full desktop environment"
       resolution: "2560x1440"
+      cap_drop:
+        - ALL
+      cap_add:
+        - CHOWN
+        - SETUID
+        - SETGID
+        - NET_RAW
+        - SYS_CHROOT
 
     local-dev:
       name: "Local Dev Image"
       image: "my-app:dev"
       pull_on_restart: false
 
+fixed_instances:
+  - id: "alice-browser-1"
+    name: "Browser 1"
+    username: "alice"
+    image: "chromium"
+    protected: false
+  - id: "alice-browser-2"
+    name: "Browser 2"
+    username: "alice"
+    image: "chromium"
+    protected: false
+  - id: "alice-browser-3"
+    name: "Browser 3"
+    username: "alice"
+    image: "chromium"
+    protected: true
+  - id: "alice-desktop"
+    name: "Locked Desktop"
+    username: "alice"
+    image: "desktop"
+    protected: true
+    cpu_limit: 4.0
+    mem_limit: "4096m"
+    shm_size: "2g"
+
+shared_instances:
+  - id: "team-desktop"
+    name: "Team Desktop"
+    image: "desktop"
+    protected: true
+    cpu_limit: 4.0
+    mem_limit: "4096m"
+    shm_size: "2g"
+    allowed_users:
+      - alice
+      - bob
+    admin_users:
+      - alice
+  - id: "shared-browser"
+    name: "Shared Browser"
+    image: "chromium"
+    protected: false
+    allowed_users:
+      - alice
+      - bob
+    admin_users:
+      - alice
+      - bob
+
 users:
   - username: "alice"
     password_hash_bcrypt: "$2b$12$..."
     protection_password: "secret123"
-    max_sessions: 3
+    max_sessions: 5
     cpu_limit: 2.0
     mem_limit: "2048m"
     shm_size: "1g"
     persistent_volume: true
     allowed_images:
-      - chromium
-      - firefox
-      - desktop
+      chromium:
+        max_sessions: 2
+      firefox:
+        max_sessions: 2
+      desktop:
+        max_sessions: 1
+      obsidian:
+        max_sessions: 1
     default_image: "desktop"
 
   - username: "bob"
