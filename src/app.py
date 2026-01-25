@@ -347,7 +347,13 @@ def create_app() -> Flask:
                 return {"error": "Not authorized"}, 403
 
         if (details.get("is_fixed") or details.get("is_shared")) and details.get("delete_protected"):
-            return {"error": "Protected instances cannot be restarted"}, 403
+            is_admin = False
+            if details.get("is_shared"):
+                is_admin = can_user_manage_shared_session(cfg, session_id, user)
+            elif details.get("is_fixed"):
+                is_admin = user_owns_session(user, session_id)
+            if not is_admin:
+                return {"error": "Protected instances can only be restarted by admins"}, 403
 
         if details.get("delete_protected"):
             data = request.get_json(silent=True) or {}

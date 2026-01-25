@@ -796,6 +796,11 @@ def ensure_fixed_instances(cfg: dict[str, Any]) -> list[SessionInfo]:
                         created.append(session)
                     except Exception as e:
                         logger.error(f"Failed to recreate fixed instance {inst['id']}: {e}")
+                else:
+                    config_protected = inst.get("protected", False)
+                    if existing_session.delete_protected != config_protected:
+                        db.update_session_protection(existing_session.session_id, config_protected)
+                        logger.info(f"Synced protection status for fixed instance '{inst['id']}' to {config_protected}")
             else:
                 stale_db_session = None
                 preserved_protection = None
@@ -982,6 +987,11 @@ def ensure_shared_instances(cfg: dict[str, Any]) -> list[SessionInfo]:
                 needs_recreate.add(shared_session.alias)
             else:
                 existing_ids_with_containers.add(shared_session.alias)
+                if inst:
+                    config_protected = inst.get("protected", False)
+                    if shared_session.delete_protected != config_protected:
+                        db.update_session_protection(shared_session.session_id, config_protected)
+                        logger.info(f"Synced protection status for shared instance '{shared_session.alias}' to {config_protected}")
         else:
             preserved_protection[shared_session.alias] = shared_session.delete_protected
             logger.info(f"Removing stale DB record for shared instance '{shared_session.alias}' (container missing, preserving protection={shared_session.delete_protected})")
