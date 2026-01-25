@@ -1,10 +1,10 @@
 ![Screenshot](./static/images/screenshot.png)
 
 <a href="https://github.com/spaaleks/mini-kasm/releases">
-  <img src="https://img.shields.io/badge/Version-v0.1.0-333333?style=for-the-badge&logo=github" alt="Version">
+  <img src="https://img.shields.io/badge/Version-v0.0.2-333333?style=for-the-badge&logo=github" alt="Version">
 </a>
 <a href="https://hub.docker.com/r/spaleks/mini-kasm">
-  <img src="https://img.shields.io/badge/Docker-spaleks%2Fspal--mini--kasm-2496ED?style=for-the-badge&logo=docker&logoColor=FFFFFF" alt="Docker image">
+  <img src="https://img.shields.io/badge/Docker-spaleks%2Fmini--kasm-2496ED?style=for-the-badge&logo=docker&logoColor=FFFFFF" alt="Docker image">
 </a>
 
 # Mini KASM
