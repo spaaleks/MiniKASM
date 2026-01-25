@@ -7,6 +7,7 @@ import logging
 import secrets
 import time
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
 
 from flask import Flask, redirect, render_template, request, session, url_for, Response
@@ -587,10 +588,17 @@ def handle_subscribe_stats(ws, user, data):
             "session_ids": owned_sessions
         }
 
-    for sid in owned_sessions:
-        stats = get_session_stats(sid)
-        if stats:
-            ws_send(ws, "stats_update", {"session_id": sid, "stats": stats})
+    if owned_sessions:
+        with ThreadPoolExecutor(max_workers=min(len(owned_sessions), 10)) as executor:
+            future_to_sid = {executor.submit(get_session_stats, sid): sid for sid in owned_sessions}
+            for future in as_completed(future_to_sid):
+                sid = future_to_sid[future]
+                try:
+                    stats = future.result()
+                    if stats:
+                        ws_send(ws, "stats_update", {"session_id": sid, "stats": stats})
+                except Exception as e:
+                    logger.error(f"Error fetching stats for {sid[:8]}: {e}")
 
 
 def handle_unsubscribe_stats(ws):
@@ -812,13 +820,30 @@ def stats_push_loop():
             with ws_clients_lock:
                 clients = list(ws_clients.values())
 
+            all_session_ids = set()
+            for client in clients:
+                all_session_ids.update(client.get("session_ids", []))
+
+            if not all_session_ids:
+                continue
+
+            stats_cache = {}
+            with ThreadPoolExecutor(max_workers=min(len(all_session_ids), 10)) as executor:
+                future_to_sid = {executor.submit(get_session_stats, sid): sid for sid in all_session_ids}
+                for future in as_completed(future_to_sid):
+                    sid = future_to_sid[future]
+                    try:
+                        stats = future.result()
+                        if stats:
+                            stats_cache[sid] = stats
+                    except Exception as e:
+                        logger.error(f"Error fetching stats for {sid[:8]}: {e}")
+
             for client in clients:
                 ws = client["ws"]
-                session_ids = client.get("session_ids", [])
-                for sid in session_ids:
-                    stats = get_session_stats(sid)
-                    if stats:
-                        ws_send(ws, "stats_update", {"session_id": sid, "stats": stats})
+                for sid in client.get("session_ids", []):
+                    if sid in stats_cache:
+                        ws_send(ws, "stats_update", {"session_id": sid, "stats": stats_cache[sid]})
         except Exception as e:
             logger.error(f"Stats push error: {e}")
 
